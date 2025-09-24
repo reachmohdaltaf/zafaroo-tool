@@ -17,6 +17,10 @@ const NewsContainer = () => {
   const [bgImage, setBgImage] = useState(null);
   const [shadow, setShadow] = useState(true);
 
+  // Custom location states
+  const [isCustomLocation, setIsCustomLocation] = useState(false);
+  const [customLocationInput, setCustomLocationInput] = useState("");
+
   // Create a unique storage key that includes the current URL and location
   const storageKey = `visitedNewsLinks_${window.location.pathname}_${selectedLocation}`;
   
@@ -41,7 +45,8 @@ const NewsContainer = () => {
     "Madhya Pradesh", "Chhattisgarh", "Goa", "Maharashtra",
     "Karnataka", "Tamil Nadu", "Kerala", "West Bengal", "Odisha",
     "Assam", "Sikkim", "Arunachal Pradesh", "Nagaland", "Manipur",
-    "Mizoram", "Tripura", "Meghalaya", "Andaman & Nicobar", "Lakshadweep"
+    "Mizoram", "Tripura", "Meghalaya", "Andaman & Nicobar", "Lakshadweep",
+    "custom" // Custom option
   ];
 
   // Load visited links from localStorage on component mount and when location changes
@@ -147,6 +152,35 @@ const NewsContainer = () => {
   const getVisitInfo = (item) => {
     const uniqueKey = createUniqueKey(item);
     return visitedLinks[uniqueKey];
+  };
+
+  // Handle location change including custom option
+  const handleLocationChange = (e) => {
+    const value = e.target.value;
+    if (value === "custom") {
+      setIsCustomLocation(true);
+      setSelectedLocation(""); // Clear selected location
+    } else {
+      setIsCustomLocation(false);
+      setSelectedLocation(value);
+      setCustomLocationInput(""); // Clear custom input
+    }
+  };
+
+  // Handle custom location submission
+  const handleCustomLocationSubmit = () => {
+    if (customLocationInput.trim()) {
+      setSelectedLocation(customLocationInput.trim());
+      setIsCustomLocation(false);
+      // This will trigger the API call with the custom location
+    }
+  };
+
+  // Handle custom location cancel
+  const handleCustomLocationCancel = () => {
+    setIsCustomLocation(false);
+    setCustomLocationInput("");
+    setSelectedLocation("Paonta Sahib"); // Reset to default
   };
 
   const fetchNews = async (location) => {
@@ -627,15 +661,69 @@ const NewsContainer = () => {
             Clear
           </button>
         )}
-        <select
-          className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
-          value={selectedLocation}
-          onChange={(e) => setSelectedLocation(e.target.value)}
-        >
-          {locations.map((loc, i) => (
-            <option key={i} value={loc}>{loc}</option>
-          ))}
-        </select>
+        
+        {/* Location Select or Custom Input */}
+        {isCustomLocation ? (
+          // Custom location input mode
+          <div className="flex gap-2 w-full sm:w-auto">
+            <input
+              type="text"
+              placeholder="Enter custom location..."
+              className="border rounded px-2 py-1 text-sm flex-1 min-w-0"
+              value={customLocationInput}
+              onChange={(e) => setCustomLocationInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleCustomLocationSubmit();
+                }
+              }}
+              autoFocus
+            />
+            <button
+              className="px-2 py-1 bg-[#6B3F69] text-white rounded text-sm hover:bg-[#70446f] disabled:opacity-50"
+              onClick={handleCustomLocationSubmit}
+              disabled={!customLocationInput.trim()}
+            >
+              ✓
+            </button>
+            <button
+              className="px-2 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400"
+              onClick={handleCustomLocationCancel}
+            >
+              ✗
+            </button>
+          </div>
+        ) : (
+          // Regular select mode
+          <select
+            className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
+            value={selectedLocation === "Paonta Sahib" ? "Paonta Sahib" : 
+                   locations.slice(0, -1).includes(selectedLocation) ? selectedLocation : "custom"}
+            onChange={handleLocationChange}
+          >
+            {locations.map((loc, i) => (
+              <option key={i} value={loc}>
+                {loc === "custom" ? "🖋️ Enter Custom Location" : loc}
+              </option>
+            ))}
+          </select>
+        )}
+        
+        {/* Show current custom location if set */}
+        {selectedLocation && !locations.slice(0, -1).includes(selectedLocation) && !isCustomLocation && (
+          <div className="flex items-center gap-2 px-2 py-1 bg-blue-100 rounded text-sm">
+            <span className="text-blue-800">📍 {selectedLocation}</span>
+            <button
+              className="text-blue-600 hover:text-blue-800 font-bold"
+              onClick={() => {
+                setSelectedLocation("Paonta Sahib");
+              }}
+              title="Remove custom location"
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
 
       {/* News list */}
