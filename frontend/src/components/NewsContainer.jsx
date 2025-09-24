@@ -69,15 +69,12 @@ const NewsContainer = () => {
     autoResizeTextarea(e.target);
   };
 
-  // Generate AI text function
+  // Generate AI text using Google Gemini 2.0 Flash API
   const generateAIText = async () => {
     setIsGeneratingAI(true);
     setAiError("");
     
     try {
-      // You can replace this with your preferred AI service
-      // Options: OpenAI, Google Gemini, Anthropic Claude, or local models
-      
       const prompt = `Rewrite this news headline in a more engaging and compelling way while keeping the same meaning and key information. Make it suitable for social media sharing:
 
 "${cleanTitle(currentItem.title)}"
@@ -87,51 +84,110 @@ Date: ${new Date(currentItem.date).toLocaleDateString("en-IN")}
 
 Instructions:
 - Keep it concise but impactful
-- Maintain factual accuracy
+- Maintain factual accuracy  
 - Make it more engaging for social media
 - Keep it under 150 characters if possible
-- Do not add emojis or hashtags`;
+- Do not add emojis or hashtags
+- Make it sound more dramatic and attention-grabbing
+- Focus on the most important aspect of the news
 
-      // Example API call - replace with your AI service
-      const response = await fetch('/api/generate-text', {
+Provide only the rewritten headline, nothing else.`;
+
+      // Google Gemini 2.0 Flash API call
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-goog-api-key': 'AIzaSyABbhtCpI3qj1m6jMvSAPtynWbuhxs4hFM' // Your API key
         },
         body: JSON.stringify({
-          prompt: prompt,
-          maxTokens: 100,
-          temperature: 0.7
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 150,
+            stopSequences: []
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            }
+          ]
         })
       });
 
       if (!response.ok) {
-        throw new Error('AI service unavailable');
+        const errorData = await response.json();
+        throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`);
       }
 
       const data = await response.json();
-      const generatedText = data.text || data.choices?.[0]?.message?.content || data.response;
       
-      if (generatedText) {
-        setEditableTitle(generatedText.trim());
-        setTimeout(() => {
-          if (textareaRef.current) {
-            autoResizeTextarea(textareaRef.current);
-          }
-        }, 0);
+      if (data.candidates && data.candidates.length > 0) {
+        const generatedText = data.candidates[0].content.parts[0].text.trim();
+        
+        // Clean up the response (remove quotes if present)
+        const cleanText = generatedText.replace(/^["']|["']$/g, '').trim();
+        
+        if (cleanText) {
+          setEditableTitle(cleanText);
+          // Auto-resize textarea after setting new content
+          setTimeout(() => {
+            if (textareaRef.current) {
+              autoResizeTextarea(textareaRef.current);
+            }
+          }, 0);
+        } else {
+          throw new Error('Empty response from Gemini API');
+        }
+      } else {
+        throw new Error('No candidates in Gemini API response');
       }
       
     } catch (error) {
-      console.error('AI generation error:', error);
-      // Fallback: Create an improved version manually
-      const originalTitle = cleanTitle(currentItem.title);
-      const improvedTitle = originalTitle
-        .replace(/\b\w+/g, word => word.charAt(0).toUpperCase() + word.slice(1))
-        .replace(/(\d+)/g, '$1')
-        .trim();
+      console.error('Gemini AI generation error:', error);
       
-      setEditableTitle(`🔥 BREAKING: ${improvedTitle}`);
-      setAiError("AI service unavailable. Applied manual enhancement.");
+      // Enhanced fallback with better text transformation
+      const originalTitle = cleanTitle(currentItem.title);
+      let improvedTitle = originalTitle;
+      
+      // Apply various improvements
+      if (originalTitle.toLowerCase().includes('police') || originalTitle.toLowerCase().includes('arrest')) {
+        improvedTitle = `🚨 BREAKING: ${originalTitle}`;
+      } else if (originalTitle.toLowerCase().includes('accident') || originalTitle.toLowerCase().includes('crash')) {
+        improvedTitle = `⚠️ URGENT: ${originalTitle}`;
+      } else if (originalTitle.toLowerCase().includes('government') || originalTitle.toLowerCase().includes('minister')) {
+        improvedTitle = `🏛️ POLITICAL UPDATE: ${originalTitle}`;
+      } else if (originalTitle.toLowerCase().includes('weather') || originalTitle.toLowerCase().includes('rain')) {
+        improvedTitle = `🌧️ WEATHER ALERT: ${originalTitle}`;
+      } else {
+        improvedTitle = `📢 NEWS: ${originalTitle}`;
+      }
+      
+      setEditableTitle(improvedTitle);
+      setAiError(`Gemini AI unavailable: ${error.message}. Applied manual enhancement.`);
       
       setTimeout(() => {
         if (textareaRef.current) {
@@ -146,6 +202,7 @@ Instructions:
   // Reset title to original
   const resetTitle = () => {
     setEditableTitle(cleanTitle(currentItem.title));
+    setAiError("");
     setTimeout(() => {
       if (textareaRef.current) {
         autoResizeTextarea(textareaRef.current);
@@ -325,7 +382,7 @@ Instructions:
 
   const openModal = (item) => {
     setCurrentItem(item);
-    setEditableTitle(cleanTitle(item.title)); // Set editable title
+    setEditableTitle(cleanTitle(item.title));
     setBgColor("#000000");
     setTextColor("#FFFF00");
     setBgImage(null);
@@ -335,7 +392,6 @@ Instructions:
     setAiError("");
     setShowModal(true);
     
-    // Auto-resize textarea after modal opens
     setTimeout(() => {
       if (textareaRef.current) {
         autoResizeTextarea(textareaRef.current);
@@ -590,7 +646,7 @@ Instructions:
 
     ctx.fillStyle = textColor;
     ctx.font = `bold ${titleFontSize}px 'Arial', sans-serif`;
-    const newsText = editableTitle || cleanTitle(currentItem.title); // Use editable title
+    const newsText = editableTitle || cleanTitle(currentItem.title);
     const words = newsText.split(' ');
     const lines = [];
     let currentLine = '';
@@ -905,19 +961,19 @@ Instructions:
                   <button
                     onClick={generateAIText}
                     disabled={isGeneratingAI}
-                    className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded text-xs hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-1"
-                    title="Generate AI enhanced title"
+                    className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded text-xs hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-1 transition-all duration-200"
+                    title="Generate AI enhanced title using Google Gemini 2.0 Flash"
                   >
                     {isGeneratingAI ? (
                       <RefreshCw size={12} className="animate-spin" />
                     ) : (
                       <Wand2 size={12} />
                     )}
-                    {isGeneratingAI ? "AI..." : "AI"}
+                    {isGeneratingAI ? "Generating..." : "✨ AI Enhance"}
                   </button>
                   <button
                     onClick={resetTitle}
-                    className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                    className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300 transition-colors"
                     title="Reset to original title"
                   >
                     Reset
@@ -929,19 +985,23 @@ Instructions:
                 ref={textareaRef}
                 value={editableTitle}
                 onChange={handleTextareaChange}
-                className="w-full border rounded px-3 py-2 text-sm resize-none overflow-hidden min-h-[60px]"
+                className="w-full border rounded px-3 py-2 text-sm resize-none overflow-hidden min-h-[60px] focus:outline-none focus:ring-2 focus:ring-purple-300"
                 placeholder="Enter news title..."
                 style={{ minHeight: '60px' }}
               />
               
               {aiError && (
-                <p className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
-                  {aiError}
-                </p>
+                <div className="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded border-l-4 border-orange-200">
+                  <div className="flex items-center gap-1">
+                    <span>⚠️</span>
+                    <span>{aiError}</span>
+                  </div>
+                </div>
               )}
               
-              <div className="text-xs text-gray-500">
-                Characters: {editableTitle.length} | Words: {editableTitle.split(' ').filter(w => w).length}
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Characters: {editableTitle.length}</span>
+                <span>Words: {editableTitle.split(' ').filter(w => w).length}</span>
               </div>
             </div>
             
@@ -951,7 +1011,7 @@ Instructions:
                 type="color" 
                 value={bgColor} 
                 onChange={(e) => setBgColor(e.target.value)} 
-                className="w-full h-10 border rounded"
+                className="w-full h-10 border rounded cursor-pointer"
               />
             </label>
             
@@ -961,7 +1021,7 @@ Instructions:
                 type="color" 
                 value={textColor} 
                 onChange={(e) => setTextColor(e.target.value)} 
-                className="w-full h-10 border rounded"
+                className="w-full h-10 border rounded cursor-pointer"
               />
             </label>
             
@@ -975,20 +1035,20 @@ Instructions:
                   setImagePosition({ x: 0, y: 0 });
                   setImageScale(1.0);
                 }} 
-                className="border rounded p-2"
+                className="border rounded p-2 text-sm file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
               />
               {bgImage && (
-                <div className="space-y-2">
-                  <div className="text-xs text-green-600 space-y-1">
-                    <div>✨ Drag image to move position</div>
-                    <div>🔄 Drag corner handles to resize</div>
-                    <div>📏 Use slider for precise scaling</div>
+                <div className="space-y-2 p-3 bg-green-50 rounded border">
+                  <div className="text-xs text-green-700 space-y-1">
+                    <div>✨ <strong>Drag image</strong> to move position</div>
+                    <div>🔄 <strong>Drag corner handles</strong> to resize</div>
+                    <div>📏 <strong>Use slider below</strong> for precise scaling</div>
                   </div>
                   <button 
                     onClick={resetImageTransform}
-                    className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200"
+                    className="text-xs bg-white px-3 py-1 rounded hover:bg-gray-50 border transition-colors"
                   >
-                    Reset All
+                    🔄 Reset Position & Scale
                   </button>
                 </div>
               )}
@@ -998,14 +1058,15 @@ Instructions:
               <input 
                 type="checkbox" 
                 checked={shadow} 
-                onChange={() => setShadow(!shadow)} 
+                onChange={() => setShadow(!shadow)}
+                className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
               />
-              <span className="text-sm">Text Shadow</span>
+              <span className="text-sm">Add Text Shadow</span>
             </label>
 
             {/* Scale slider */}
             {bgImage && (
-              <label className="flex flex-col gap-1">
+              <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium">Image Scale: {Math.round(imageScale * 100)}%</span>
                 <input 
                   type="range" 
@@ -1014,43 +1075,46 @@ Instructions:
                   step="0.1"
                   value={imageScale}
                   onChange={(e) => setImageScale(parseFloat(e.target.value))}
-                  className="w-full"
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                 />
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>30%</span>
-                  <span>300%</span>
+                  <span>30% (Min)</span>
+                  <span>100% (Original)</span>
+                  <span>300% (Max)</span>
                 </div>
               </label>
             )}
             
             <div>
-              <p className="text-sm font-bold text-[#551d54] mb-2">
-                Preview: {bgImage ? "(Interactive Editor)" : ""}
+              <p className="text-sm font-bold text-[#551d54] mb-2 flex items-center gap-2">
+                <span>📱 Preview:</span>
+                {bgImage && <span className="text-xs font-normal text-gray-600">(Interactive Editor - Drag & Resize)</span>}
               </p>
               <canvas 
                 ref={previewCanvasRef} 
-                className="border w-full max-w-full h-auto rounded cursor-default"
-                style={{ maxHeight: '300px' }}
+                className="border w-full max-w-full h-auto rounded cursor-default shadow-sm"
+                style={{ maxHeight: '300px', backgroundColor: '#f9f9f9' }}
               />
               {bgImage && (
-                <div className="text-xs text-gray-500 mt-1 grid grid-cols-2 gap-2">
-                  <div>Position: X: {Math.round(imagePosition.x)}, Y: {Math.round(imagePosition.y)}</div>
-                  <div>Scale: {Math.round(imageScale * 100)}%</div>
+                <div className="text-xs text-gray-500 mt-2 grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded">
+                  <div>📍 Position: X: {Math.round(imagePosition.x)}, Y: {Math.round(imagePosition.y)}</div>
+                  <div>🔍 Scale: {Math.round(imageScale * 100)}%</div>
                 </div>
               )}
             </div>
             
-            <div className="flex justify-end gap-2 mt-4">
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
               <button 
-                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors" 
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors font-medium" 
                 onClick={() => setShowModal(false)}
               >
                 Cancel
               </button>
               <button 
-                className="px-4 py-2 bg-[#6B3F69] text-white rounded hover:bg-[#70446f] transition-colors" 
+                className="px-4 py-2 bg-[#6B3F69] text-white rounded hover:bg-[#70446f] transition-colors font-medium flex items-center gap-2" 
                 onClick={createNewsPost}
               >
+                <Download size={16} />
                 Generate Post
               </button>
             </div>
