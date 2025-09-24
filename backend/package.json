@@ -2,12 +2,12 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "backend/index.js",
-  "scripts": {
-    "dev": "nodemon backend/index.js",
-    "start": "node backend/index.js",
-  "heroku-postbuild": "cd ../frontend && npm install && npm run build"
-  },
+  "main": "index.js",
+ "scripts": {
+  "dev": "nodemon index.js",
+  "start": "node index.js",
+  "heroku-postbuild": "cd frontend && npm install && npm run build"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
