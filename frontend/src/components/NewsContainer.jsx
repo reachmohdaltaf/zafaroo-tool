@@ -1,4 +1,4 @@
-import { Copy, Download, Clock } from "lucide-react";
+import { Copy, Download, Clock, Wand2, RefreshCw } from "lucide-react";
 import React, { useEffect, useState, useRef } from "react";
 
 const NewsContainer = () => {
@@ -21,6 +21,11 @@ const NewsContainer = () => {
   const [isCustomLocation, setIsCustomLocation] = useState(false);
   const [customLocationInput, setCustomLocationInput] = useState("");
 
+  // Title editing and AI generation states
+  const [editableTitle, setEditableTitle] = useState("");
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiError, setAiError] = useState("");
+
   // Create a unique storage key that includes the current URL and location
   const storageKey = `visitedNewsLinks_${window.location.pathname}_${selectedLocation}`;
   
@@ -37,6 +42,7 @@ const NewsContainer = () => {
 
   const previewCanvasRef = useRef(null);
   const imageDataRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const locations = [
     "Paonta Sahib", "Himachal Pradesh", "Chandigarh", "Haryana",
@@ -48,6 +54,104 @@ const NewsContainer = () => {
     "Mizoram", "Tripura", "Meghalaya", "Andaman & Nicobar", "Lakshadweep",
     "custom" // Custom option
   ];
+
+  // Auto-resize textarea function
+  const autoResizeTextarea = (textarea) => {
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+  };
+
+  // Handle textarea input and auto-resize
+  const handleTextareaChange = (e) => {
+    setEditableTitle(e.target.value);
+    autoResizeTextarea(e.target);
+  };
+
+  // Generate AI text function
+  const generateAIText = async () => {
+    setIsGeneratingAI(true);
+    setAiError("");
+    
+    try {
+      // You can replace this with your preferred AI service
+      // Options: OpenAI, Google Gemini, Anthropic Claude, or local models
+      
+      const prompt = `Rewrite this news headline in a more engaging and compelling way while keeping the same meaning and key information. Make it suitable for social media sharing:
+
+"${cleanTitle(currentItem.title)}"
+
+Location: ${currentItem.location || selectedLocation}
+Date: ${new Date(currentItem.date).toLocaleDateString("en-IN")}
+
+Instructions:
+- Keep it concise but impactful
+- Maintain factual accuracy
+- Make it more engaging for social media
+- Keep it under 150 characters if possible
+- Do not add emojis or hashtags`;
+
+      // Example API call - replace with your AI service
+      const response = await fetch('/api/generate-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          maxTokens: 100,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('AI service unavailable');
+      }
+
+      const data = await response.json();
+      const generatedText = data.text || data.choices?.[0]?.message?.content || data.response;
+      
+      if (generatedText) {
+        setEditableTitle(generatedText.trim());
+        setTimeout(() => {
+          if (textareaRef.current) {
+            autoResizeTextarea(textareaRef.current);
+          }
+        }, 0);
+      }
+      
+    } catch (error) {
+      console.error('AI generation error:', error);
+      // Fallback: Create an improved version manually
+      const originalTitle = cleanTitle(currentItem.title);
+      const improvedTitle = originalTitle
+        .replace(/\b\w+/g, word => word.charAt(0).toUpperCase() + word.slice(1))
+        .replace(/(\d+)/g, '$1')
+        .trim();
+      
+      setEditableTitle(`🔥 BREAKING: ${improvedTitle}`);
+      setAiError("AI service unavailable. Applied manual enhancement.");
+      
+      setTimeout(() => {
+        if (textareaRef.current) {
+          autoResizeTextarea(textareaRef.current);
+        }
+      }, 0);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // Reset title to original
+  const resetTitle = () => {
+    setEditableTitle(cleanTitle(currentItem.title));
+    setTimeout(() => {
+      if (textareaRef.current) {
+        autoResizeTextarea(textareaRef.current);
+      }
+    }, 0);
+  };
 
   // Load visited links from localStorage on component mount and when location changes
   useEffect(() => {
@@ -62,22 +166,19 @@ const NewsContainer = () => {
     } else {
       setVisitedLinks({});
     }
-  }, [selectedLocation, storageKey]); // Reset when location changes
+  }, [selectedLocation, storageKey]);
 
   // Save visited links to localStorage with debouncing
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
-    // Clear any existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     
-    // Set new timeout to save after 500ms of no changes
     saveTimeoutRef.current = setTimeout(() => {
       localStorage.setItem(storageKey, JSON.stringify(visitedLinks));
     }, 500);
     
-    // Cleanup timeout on unmount
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -102,12 +203,11 @@ const NewsContainer = () => {
         firstVisit: prev[uniqueKey] ? prev[uniqueKey].firstVisit : currentTime,
         lastVisit: currentTime,
         visitCount: prev[uniqueKey] ? prev[uniqueKey].visitCount + 1 : 1,
-        title: item.title, // Store title for reference
-        location: selectedLocation // Store location context
+        title: item.title,
+        location: selectedLocation
       }
     }));
 
-    // Open the link
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
@@ -143,7 +243,7 @@ const NewsContainer = () => {
     const uniqueKey = createUniqueKey(item);
     const isVisited = visitedLinks[uniqueKey]?.visited;
     return {
-      color: isVisited ? '#8B5CF6' : '#551d54', // Purple if visited, original color if not
+      color: isVisited ? '#8B5CF6' : '#551d54',
       opacity: isVisited ? 0.8 : 1,
     };
   };
@@ -159,11 +259,11 @@ const NewsContainer = () => {
     const value = e.target.value;
     if (value === "custom") {
       setIsCustomLocation(true);
-      setSelectedLocation(""); // Clear selected location
+      setSelectedLocation("");
     } else {
       setIsCustomLocation(false);
       setSelectedLocation(value);
-      setCustomLocationInput(""); // Clear custom input
+      setCustomLocationInput("");
     }
   };
 
@@ -172,7 +272,6 @@ const NewsContainer = () => {
     if (customLocationInput.trim()) {
       setSelectedLocation(customLocationInput.trim());
       setIsCustomLocation(false);
-      // This will trigger the API call with the custom location
     }
   };
 
@@ -180,7 +279,7 @@ const NewsContainer = () => {
   const handleCustomLocationCancel = () => {
     setIsCustomLocation(false);
     setCustomLocationInput("");
-    setSelectedLocation("Paonta Sahib"); // Reset to default
+    setSelectedLocation("Paonta Sahib");
   };
 
   const fetchNews = async (location) => {
@@ -188,7 +287,6 @@ const NewsContainer = () => {
     try {
       const query = location ? `?location=${encodeURIComponent(location)}` : "";
       
-      // Determine API URL dynamically
       const baseURL = window.location.hostname === "localhost"
         ? "http://localhost:5000/api/news"
         : "/api/news";
@@ -227,13 +325,22 @@ const NewsContainer = () => {
 
   const openModal = (item) => {
     setCurrentItem(item);
+    setEditableTitle(cleanTitle(item.title)); // Set editable title
     setBgColor("#000000");
     setTextColor("#FFFF00");
     setBgImage(null);
     setShadow(true);
     setImagePosition({ x: 0, y: 0 });
     setImageScale(1.0);
+    setAiError("");
     setShowModal(true);
+    
+    // Auto-resize textarea after modal opens
+    setTimeout(() => {
+      if (textareaRef.current) {
+        autoResizeTextarea(textareaRef.current);
+      }
+    }, 100);
   };
 
   // Calculate image dimensions with scaling
@@ -258,25 +365,20 @@ const NewsContainer = () => {
   const drawImageWithTransform = (ctx, img, x, y, width, height, offsetX = 0, offsetY = 0, scale = 1) => {
     const { drawWidth, drawHeight } = calculateImageDimensions(img, width, height, scale);
     
-    // Calculate base position (centered)
     const baseX = (width - drawWidth) / 2;
     const baseY = (height - drawHeight) / 2;
     
-    // Add user offset
     const finalX = x + baseX + offsetX;
     const finalY = y + baseY + offsetY;
 
-    // Create clipping path
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, width, height);
     ctx.clip();
     
-    // Draw the image
     ctx.drawImage(img, finalX, finalY, drawWidth, drawHeight);
     ctx.restore();
 
-    // Store image data for interaction calculations
     imageDataRef.current = {
       x: finalX,
       y: finalY,
@@ -289,7 +391,6 @@ const NewsContainer = () => {
       scale: scale
     };
 
-    // Draw resize handles if image is loaded
     drawResizeHandles(ctx, finalX, finalY, drawWidth, drawHeight);
   };
 
@@ -297,23 +398,20 @@ const NewsContainer = () => {
   const drawResizeHandles = (ctx, x, y, width, height) => {
     const handleSize = 12;
     const handles = [
-      { x: x - handleSize/2, y: y - handleSize/2 }, // top-left
-      { x: x + width - handleSize/2, y: y - handleSize/2 }, // top-right
-      { x: x - handleSize/2, y: y + height - handleSize/2 }, // bottom-left
-      { x: x + width - handleSize/2, y: y + height - handleSize/2 }, // bottom-right
+      { x: x - handleSize/2, y: y - handleSize/2 },
+      { x: x + width - handleSize/2, y: y - handleSize/2 },
+      { x: x - handleSize/2, y: y + height - handleSize/2 },
+      { x: x + width - handleSize/2, y: y + height - handleSize/2 },
     ];
 
     handles.forEach(handle => {
-      // Handle background
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(handle.x, handle.y, handleSize, handleSize);
       
-      // Handle border
       ctx.strokeStyle = '#666';
       ctx.lineWidth = 1;
       ctx.strokeRect(handle.x, handle.y, handleSize, handleSize);
       
-      // Handle icon (small square)
       ctx.fillStyle = '#333';
       ctx.fillRect(handle.x + 3, handle.y + 3, handleSize - 6, handleSize - 6);
     });
@@ -354,13 +452,11 @@ const NewsContainer = () => {
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
     
-    // Check if mouse is in image area (top 60% of canvas)
     const imageAreaHeight = canvas.height * 0.6;
     if (mouseY <= imageAreaHeight) {
       const resizeCorner = getResizeCorner(mouseX, mouseY);
       
       if (resizeCorner) {
-        // Start resizing
         setIsResizing(true);
         setResizeStart({
           x: mouseX,
@@ -369,7 +465,6 @@ const NewsContainer = () => {
           corner: resizeCorner
         });
       } else {
-        // Start dragging
         setIsDragging(true);
         setDragStart({ 
           x: mouseX - imagePosition.x, 
@@ -390,7 +485,6 @@ const NewsContainer = () => {
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
 
-    // Update cursor based on hover state
     const imageAreaHeight = canvas.height * 0.6;
     if (mouseY <= imageAreaHeight) {
       const resizeCorner = getResizeCorner(mouseX, mouseY);
@@ -409,7 +503,6 @@ const NewsContainer = () => {
     }
 
     if (isDragging) {
-      // Handle dragging
       canvas.style.cursor = 'grabbing';
       const newX = mouseX - dragStart.x;
       const newY = mouseY - dragStart.y;
@@ -422,24 +515,18 @@ const NewsContainer = () => {
         y: Math.max(-maxOffsetY, Math.min(maxOffsetY, newY))
       });
     } else if (isResizing) {
-      // Handle resizing
       const deltaX = mouseX - resizeStart.x;
       const deltaY = mouseY - resizeStart.y;
       
-      // Calculate scale change based on corner and distance
       let scaleChange = 0;
       
       if (resizeStart.corner === 'br') {
-        // Bottom-right: positive movement = scale up
         scaleChange = (deltaX + deltaY) / 200;
       } else if (resizeStart.corner === 'tl') {
-        // Top-left: negative movement = scale up
         scaleChange = -(deltaX + deltaY) / 200;
       } else if (resizeStart.corner === 'tr') {
-        // Top-right: right-up movement = scale up
         scaleChange = (deltaX - deltaY) / 200;
       } else if (resizeStart.corner === 'bl') {
-        // Bottom-left: left-down movement = scale up
         scaleChange = (-deltaX + deltaY) / 200;
       }
       
@@ -475,7 +562,6 @@ const NewsContainer = () => {
 
   // Common text drawing function for both preview and final
   const drawTextSection = (ctx, canvasWidth, imageHeight, textHeight, isPreview = false) => {
-    // Scale factors for consistent text rendering
     const scale = isPreview ? 1 : (canvasWidth / 320);
     const padding = isPreview ? 10 : 40;
     const brandFontSize = isPreview ? 12 : 48;
@@ -483,11 +569,9 @@ const NewsContainer = () => {
     const footerFontSize = isPreview ? 10 : 36;
     const lineHeight = isPreview ? 18 : 70;
 
-    // Text section background
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, imageHeight, canvasWidth, textHeight);
 
-    // Zafaroo News (brand)
     ctx.fillStyle = "#FFFFFF";
     ctx.font = `bold ${brandFontSize}px 'Arial', sans-serif`;
     ctx.textAlign = "left";
@@ -504,10 +588,9 @@ const NewsContainer = () => {
 
     ctx.fillText("Zafaroo News", padding, imageHeight + (isPreview ? 10 : 30));
 
-    // Main title
     ctx.fillStyle = textColor;
     ctx.font = `bold ${titleFontSize}px 'Arial', sans-serif`;
-    const newsText = cleanTitle(currentItem.title);
+    const newsText = editableTitle || cleanTitle(currentItem.title); // Use editable title
     const words = newsText.split(' ');
     const lines = [];
     let currentLine = '';
@@ -530,7 +613,6 @@ const NewsContainer = () => {
       ctx.fillText(line.trim(), padding, startY + i * lineHeight);
     });
 
-    // Footer
     ctx.font = `${footerFontSize}px 'Arial', sans-serif`;
     ctx.fillStyle = "#CCCCCC";
     ctx.shadowColor = "transparent";
@@ -586,7 +668,6 @@ const NewsContainer = () => {
           y: imagePosition.y * scaleY
         };
         
-        // Draw image without resize handles
         const { drawWidth, drawHeight } = calculateImageDimensions(img, canvas.width, imageHeight, imageScale);
         const baseX = (canvas.width - drawWidth) / 2;
         const baseY = (imageHeight - drawHeight) / 2;
@@ -600,10 +681,8 @@ const NewsContainer = () => {
         ctx.drawImage(img, finalX, finalY, drawWidth, drawHeight);
         ctx.restore();
         
-        // Use the same text drawing function
         drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, false);
         
-        // Download
         const link = document.createElement("a");
         link.download = "facebook_news_post.png";
         link.href = canvas.toDataURL();
@@ -618,10 +697,8 @@ const NewsContainer = () => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, imageHeight);
       
-      // Use the same text drawing function
       drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, false);
       
-      // Download
       const link = document.createElement("a");
       link.download = "facebook_news_post.png";
       link.href = canvas.toDataURL();
@@ -637,7 +714,7 @@ const NewsContainer = () => {
 
   useEffect(() => {
     if (showModal) drawPreview();
-  }, [bgColor, textColor, bgImage, shadow, showModal, imagePosition, imageScale]);
+  }, [bgColor, textColor, bgImage, shadow, showModal, imagePosition, imageScale, editableTitle]);
 
   if (loading) return <p className="px-2 text-[#551d54]">Loading news...</p>;
 
@@ -664,7 +741,6 @@ const NewsContainer = () => {
         
         {/* Location Select or Custom Input */}
         {isCustomLocation ? (
-          // Custom location input mode
           <div className="flex gap-2 w-full sm:w-auto">
             <input
               type="text"
@@ -694,7 +770,6 @@ const NewsContainer = () => {
             </button>
           </div>
         ) : (
-          // Regular select mode
           <select
             className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
             value={selectedLocation === "Paonta Sahib" ? "Paonta Sahib" : 
@@ -732,7 +807,7 @@ const NewsContainer = () => {
           const visitInfo = getVisitInfo(item);
           return (
             <div
-              key={`${item.id}_${selectedLocation}`} // Unique key for React
+              key={`${item.id}_${selectedLocation}`}
               className="container flex flex-col md:flex-row justify-between items-start md:items-center rounded-lg p-2 border border-gray-200"
             >
               <div className="flex-1 mb-2 md:mb-0">
@@ -755,7 +830,6 @@ const NewsContainer = () => {
                     })()}
                   </p>
                   
-                  {/* Visit status and time */}
                   {visitInfo?.visited && (
                     <div className="flex items-center gap-1 text-xs text-purple-600">
                       <Clock size={12} />
@@ -822,6 +896,54 @@ const NewsContainer = () => {
           <div className="bg-white rounded-lg p-6 w-96 max-w-[90vw] flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-[#551d54]">Create Facebook Portrait Post</h2>
             <p className="text-sm text-gray-600">Size: 1080x1350px (4:5 aspect ratio)</p>
+            
+            {/* Editable Title Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">News Title:</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={generateAIText}
+                    disabled={isGeneratingAI}
+                    className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded text-xs hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 flex items-center gap-1"
+                    title="Generate AI enhanced title"
+                  >
+                    {isGeneratingAI ? (
+                      <RefreshCw size={12} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={12} />
+                    )}
+                    {isGeneratingAI ? "AI..." : "AI"}
+                  </button>
+                  <button
+                    onClick={resetTitle}
+                    className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                    title="Reset to original title"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              
+              <textarea
+                ref={textareaRef}
+                value={editableTitle}
+                onChange={handleTextareaChange}
+                className="w-full border rounded px-3 py-2 text-sm resize-none overflow-hidden min-h-[60px]"
+                placeholder="Enter news title..."
+                style={{ minHeight: '60px' }}
+              />
+              
+              {aiError && (
+                <p className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                  {aiError}
+                </p>
+              )}
+              
+              <div className="text-xs text-gray-500">
+                Characters: {editableTitle.length} | Words: {editableTitle.split(' ').filter(w => w).length}
+              </div>
+            </div>
             
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">Background Color (Text Section):</span>
