@@ -2,10 +2,10 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "backend/index.js",
   "scripts": {
-    "dev": "nodemon index.js",
-    "start": "node index.js",
+    "dev": "nodemon backend/index.js",
+    "start": "node backend/index.js",
   "heroku-postbuild": "cd ../frontend && npm install && npm run build"
   },
   "keywords": [],
