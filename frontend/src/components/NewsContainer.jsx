@@ -112,20 +112,27 @@ const NewsContainer = () => {
     };
   };
 
-  const fetchNews = async (location) => {
-    setLoading(true);
-    try {
-      const query = location ? `?location=${encodeURIComponent(location)}` : "";
-const response = await fetch(`${import.meta.env.REACT_APP_API_URL}/news${query}`);
-      const data = await response.json();
-      setNews(data);
-      setCurrentPage(1);
-    } catch (error) {
-      console.error("Error fetching news:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const fetchNews = async (location) => {
+  setLoading(true);
+  try {
+    const query = location ? `?location=${encodeURIComponent(location)}` : "";
+    
+    // Determine API URL dynamically
+    const baseURL = window.location.hostname === "localhost"
+      ? "http://localhost:5000/api/news"
+      : "/api/news";
+
+    const response = await fetch(`${baseURL}${query}`);
+    const data = await response.json();
+    setNews(data);
+    setCurrentPage(1);
+  } catch (error) {
+    console.error("Error fetching news:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchNews(selectedLocation);
