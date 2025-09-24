@@ -2,10 +2,10 @@
   "name": "zafaroo-tool",
   "version": "1.0.0",
   "main": "backend/index.js",
-  "scripts": {
-    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
-    "start": "cd backend && npm install && npm start"
-  },
+ "scripts": {
+  "start": "cd backend && npm install && npm start",
+  "build": "cd frontend && npm install && npm run build && cd ../backend && npm install"
+},
   "engines": {
     "node": "18.x"
   }
