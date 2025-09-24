@@ -75,7 +75,7 @@ const NewsContainer = () => {
     setAiError("");
     
     try {
-      const prompt = `Rewrite this news headline in a more engaging and compelling way while keeping the same meaning and key information. Make it suitable for social media sharing:
+      const prompt = `Rewrite this in hindi news headline in a more engaging and compelling way while keeping the same meaning and key information. Make it suitable for social media sharing:
 
 "${cleanTitle(currentItem.title)}"
 
@@ -83,7 +83,7 @@ Location: ${currentItem.location || selectedLocation}
 Date: ${new Date(currentItem.date).toLocaleDateString("en-IN")}
 
 Instructions:
-- Keep it concise but impactful
+- Keep it concise and in hindi but impactful
 - Maintain factual accuracy  
 - Make it more engaging for social media
 - Keep it under 150 characters if possible
