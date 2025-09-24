@@ -16,11 +16,12 @@ app.use("/api/news", newsRoutes);
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/build")));
 
-  // Express 5 compatible catch-all route using regex
-  app.get("/:any(.*)", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "../frontend", "build", "index.html"));
+  // Express 5 catch-all route using regex that works with strict path-to-regexp
+  app.get(/^\/.*$/, (req, res) => {
+    res.sendFile(path.resolve(__dirname, "../frontend/build/index.html"));
   });
 }
+
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
