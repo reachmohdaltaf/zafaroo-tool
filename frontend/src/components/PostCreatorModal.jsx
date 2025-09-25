@@ -1,14 +1,22 @@
 // components/PostCreatorModal.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, Download, Clock, Wand2, RefreshCw, Type, Globe, Search, Upload, ImageIcon } from "lucide-react";
-import { drawImageWithTransform, drawTextSection, getResizeCorner, calculateImageDimensions } from '../../utils/canvasUtils';
+import {
+  Copy, Download, Wand2, RefreshCw, Type, Upload, ImageIcon,
+  Hash, MessageSquare, Check
+} from "lucide-react";
+import {
+  drawImageWithTransform,
+  drawTextSection,
+  getResizeCorner,
+  calculateImageDimensions
+} from '../../utils/canvasUtils';
 
-const PostCreatorModal = ({ 
-  show, 
-  onClose, 
-  currentItem, 
+const PostCreatorModal = ({
+  show,
+  onClose,
+  currentItem,
   selectedLocation,
-  cleanTitle 
+  cleanTitle
 }) => {
   const [bgColor, setBgColor] = useState("#000000");
   const [textColor, setTextColor] = useState("#FFFF00");
@@ -23,20 +31,20 @@ const PostCreatorModal = ({
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
-  
-  // New text resizing states
+
+  // Text styling states
   const [titleFontSize, setTitleFontSize] = useState(24);
   const [metaFontSize, setMetaFontSize] = useState(14);
   const [textAlignment, setTextAlignment] = useState('left');
   const [lineHeight, setLineHeight] = useState(1.2);
-  
-  // Image scraping states
-  const [scrapeUrl, setScrapeUrl] = useState("");
-  const [isScrapingImages, setIsScrapingImages] = useState(false);
-  const [scrapedImages, setScrapedImages] = useState([]);
-  const [scrapeError, setScrapeError] = useState("");
 
-  // Drag and drop states
+  // Facebook description/hashtag states
+  const [fbDescription, setFbDescription] = useState("");
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [descriptionError, setDescriptionError] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Drag & drop states
   const [isDragOver, setIsDragOver] = useState(false);
   const [pasteNotification, setPasteNotification] = useState("");
 
@@ -46,7 +54,7 @@ const PostCreatorModal = ({
   const dropZoneRef = useRef(null);
   const modalRef = useRef(null);
 
-  // Initialize modal when it opens
+  // Reset all states when opened
   useEffect(() => {
     if (show && currentItem) {
       setEditableTitle(cleanTitle(currentItem.title));
@@ -57,12 +65,11 @@ const PostCreatorModal = ({
       setImagePosition({ x: 0, y: 0 });
       setImageScale(1.0);
       setAiError("");
-      setScrapeError("");
-      setScrapedImages([]);
-      setScrapeUrl("");
+      setFbDescription("");
+      setDescriptionError("");
+      setIsCopied(false);
       setIsDragOver(false);
       setPasteNotification("");
-      
       setTimeout(() => {
         if (textareaRef.current) {
           autoResizeTextarea(textareaRef.current);
@@ -71,14 +78,12 @@ const PostCreatorModal = ({
     }
   }, [show, currentItem]);
 
-  // Add paste event listener
+  // Clipboard paste event for images
   useEffect(() => {
     const handlePaste = async (e) => {
       if (!show) return;
-      
       e.preventDefault();
       const items = e.clipboardData?.items;
-      
       if (items) {
         for (let item of items) {
           if (item.type.startsWith('image/')) {
@@ -93,14 +98,13 @@ const PostCreatorModal = ({
         }
       }
     };
-
     if (show) {
       document.addEventListener('paste', handlePaste);
       return () => document.removeEventListener('paste', handlePaste);
     }
   }, [show]);
 
-  // Handle image file processing
+  // Handle image file upload
   const handleImageFile = (file) => {
     if (file && file.type.startsWith('image/')) {
       setBgImage(file);
@@ -109,31 +113,19 @@ const PostCreatorModal = ({
     }
   };
 
-  // Drag and Drop Handlers
+  // Drag and drop handlers
   const handleDragEnter = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
+    e.preventDefault(); e.stopPropagation(); setIsDragOver(true);
   };
-
   const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!dropZoneRef.current?.contains(e.relatedTarget)) {
-      setIsDragOver(false);
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (!dropZoneRef.current?.contains(e.relatedTarget)) setIsDragOver(false);
   };
-
   const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
   };
-
   const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-    
+    e.preventDefault(); e.stopPropagation(); setIsDragOver(false);
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
@@ -148,7 +140,7 @@ const PostCreatorModal = ({
     }
   };
 
-  // Auto-resize textarea function
+  // Textarea auto-resize
   const autoResizeTextarea = (textarea) => {
     if (textarea) {
       textarea.style.height = 'auto';
@@ -156,25 +148,20 @@ const PostCreatorModal = ({
     }
   };
 
-  // Handle textarea input and auto-resize
   const handleTextareaChange = (e) => {
     setEditableTitle(e.target.value);
     autoResizeTextarea(e.target);
   };
 
-  // Generate AI text using Google Gemini 2.0 Flash API
+  // AI-enhanced Title
   const generateAIText = async () => {
     setIsGeneratingAI(true);
     setAiError("");
-    
     try {
       const prompt = `Rewrite this in hindi news headline in a more engaging and compelling way while keeping the same meaning and key information. Make it suitable for social media sharing:
-
 "${cleanTitle(currentItem.title)}"
-
 Location: ${currentItem.location || selectedLocation}
 Date: ${new Date(currentItem.date).toLocaleDateString("en-IN")}
-
 Instructions:
 - Keep it concise and in hindi but impactful
 - Maintain factual accuracy  
@@ -183,10 +170,8 @@ Instructions:
 - Do not add emojis or hashtags
 - Make it sound more dramatic and attention-grabbing
 - Focus on the most important aspect of the news
-
 Provide only the rewritten headline, nothing else.`;
 
-      // Google Gemini 2.0 Flash API call
       const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
         method: 'POST',
         headers: {
@@ -194,21 +179,74 @@ Provide only the rewritten headline, nothing else.`;
           'X-goog-api-key': 'AIzaSyABbhtCpI3qj1m6jMvSAPtynWbuhxs4hFM'
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
+          contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 150,
-            stopSequences: []
+            temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 150, stopSequences: []
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`);
+      }
+      const data = await response.json();
+      if (data.candidates && data.candidates.length > 0) {
+        const generatedText = data.candidates[0].content.parts[0].text.trim();
+        const cleanText = generatedText.replace(/^[\"']|[\"']$/g, '').trim();
+        if (cleanText) {
+          setEditableTitle(cleanText);
+          setTimeout(() => {
+            if (textareaRef.current) autoResizeTextarea(textareaRef.current);
+          }, 0);
+        } else {
+          throw new Error('Empty response from Gemini API');
+        }
+      } else throw new Error('No candidates in Gemini API response');
+    } catch (error) {
+      setAiError(`Gemini AI unavailable: ${error.message}. Applied manual enhancement.`);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // Facebook Description Generation
+  const generateFacebookDescription = async () => {
+    setIsGeneratingDescription(true); setDescriptionError("");
+    try {
+      const prompt = `Create an engaging Facebook post description in hindi based on this news headline:
+
+Title: "${editableTitle || cleanTitle(currentItem.title)}"
+Location: ${currentItem.location || selectedLocation}
+Date: ${new Date(currentItem.date).toLocaleDateString("en-IN")}
+
+Instructions:
+- Write in Hindi/English mix (Hinglish) as appropriate for Indian Facebook audience
+- Create 2-3 engaging sentences that summarize the news
+- Make it shareable and conversation-starting
+- Include 5-8 relevant hashtags at the end
+- Keep it under 200 words
+- Make it suitable for Facebook sharing
+- Focus on the human impact or significance of the news
+- Use emojis strategically (2-3 maximum)
+
+Format:
+[Engaging description paragraph]
+
+#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5
+
+Provide only the Facebook post content, nothing else.`;
+
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': 'AIzaSyABbhtCpI3qj1m6jMvSAPtynWbuhxs4hFM'
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.8, topK: 40, topP: 0.95, maxOutputTokens: 300, stopSequences: []
           }
         })
       });
@@ -219,74 +257,56 @@ Provide only the rewritten headline, nothing else.`;
       }
 
       const data = await response.json();
-      
       if (data.candidates && data.candidates.length > 0) {
-        const generatedText = data.candidates[0].content.parts[0].text.trim();
-        const cleanText = generatedText.replace(/^[\"']|[\"']$/g, '').trim();
-        
-        if (cleanText) {
-          setEditableTitle(cleanText);
-          setTimeout(() => {
-            if (textareaRef.current) {
-              autoResizeTextarea(textareaRef.current);
-            }
-          }, 0);
-        } else {
-          throw new Error('Empty response from Gemini API');
-        }
-      } else {
-        throw new Error('No candidates in Gemini API response');
-      }
-      
+        const generatedDescription = data.candidates[0].content.parts[0].text.trim();
+        if (generatedDescription) {
+          setFbDescription(generatedDescription);
+        } else throw new Error('Empty response from Gemini API');
+      } else throw new Error('No candidates in Gemini API response');
     } catch (error) {
-      console.error('Gemini AI generation error:', error);
-      setAiError(`Gemini AI unavailable: ${error.message}. Applied manual enhancement.`);
+      setDescriptionError(`Description generation failed: ${error.message}`);
     } finally {
-      setIsGeneratingAI(false);
+      setIsGeneratingDescription(false);
     }
   };
 
-  // Reset title to original
-  const resetTitle = () => {
-    setEditableTitle(cleanTitle(currentItem.title));
-    setAiError("");
-    setTimeout(() => {
-      if (textareaRef.current) {
-        autoResizeTextarea(textareaRef.current);
-      }
-    }, 0);
+  // Copy to Clipboard
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(fbDescription);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = fbDescription;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
   };
 
-  // Mouse event handlers for canvas interaction
+  // Mouse/canvas handlers
   const handleMouseDown = (e) => {
     if (!bgImage || !imageDataRef.current) return;
-    
     const canvas = previewCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
-    
     const imageAreaHeight = canvas.height * 0.6;
     if (mouseY <= imageAreaHeight) {
       const resizeCorner = getResizeCorner(mouseX, mouseY, imageDataRef);
-      
       if (resizeCorner) {
         setIsResizing(true);
-        setResizeStart({
-          x: mouseX,
-          y: mouseY,
-          scale: imageScale,
-          corner: resizeCorner
-        });
+        setResizeStart({ x: mouseX, y: mouseY, scale: imageScale, corner: resizeCorner });
       } else {
         setIsDragging(true);
-        setDragStart({ 
-          x: mouseX - imagePosition.x, 
-          y: mouseY - imagePosition.y 
-        });
+        setDragStart({ x: mouseX - imagePosition.x, y: mouseY - imagePosition.y });
       }
     }
   };
@@ -294,59 +314,37 @@ Provide only the rewritten headline, nothing else.`;
   const handleMouseMove = (e) => {
     const canvas = previewCanvasRef.current;
     if (!canvas || !bgImage) return;
-    
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
-
     const imageAreaHeight = canvas.height * 0.6;
     if (mouseY <= imageAreaHeight) {
       const resizeCorner = getResizeCorner(mouseX, mouseY, imageDataRef);
-      
       if (resizeCorner) {
-        if (resizeCorner === 'tl' || resizeCorner === 'br') {
-          canvas.style.cursor = 'nw-resize';
-        } else {
-          canvas.style.cursor = 'ne-resize';
-        }
-      } else if (imageDataRef.current) {
-        canvas.style.cursor = 'grab';
-      }
+        if (resizeCorner === 'tl' || resizeCorner === 'br') canvas.style.cursor = 'nw-resize';
+        else canvas.style.cursor = 'ne-resize';
+      } else if (imageDataRef.current) canvas.style.cursor = 'grab';
     } else {
       canvas.style.cursor = 'default';
     }
-
     if (isDragging) {
       canvas.style.cursor = 'grabbing';
       const newX = mouseX - dragStart.x;
       const newY = mouseY - dragStart.y;
-      
-      const maxOffsetX = 200;
-      const maxOffsetY = 100;
-      
       setImagePosition({
-        x: Math.max(-maxOffsetX, Math.min(maxOffsetX, newX)),
-        y: Math.max(-maxOffsetY, Math.min(maxOffsetY, newY))
+        x: Math.max(-200, Math.min(200, newX)),
+        y: Math.max(-100, Math.min(100, newY))
       });
     } else if (isResizing) {
       const deltaX = mouseX - resizeStart.x;
       const deltaY = mouseY - resizeStart.y;
-      
       let scaleChange = 0;
-      
-      if (resizeStart.corner === 'br') {
-        scaleChange = (deltaX + deltaY) / 200;
-      } else if (resizeStart.corner === 'tl') {
-        scaleChange = -(deltaX + deltaY) / 200;
-      } else if (resizeStart.corner === 'tr') {
-        scaleChange = (deltaX - deltaY) / 200;
-      } else if (resizeStart.corner === 'bl') {
-        scaleChange = (-deltaX + deltaY) / 200;
-      }
-      
+      if (resizeStart.corner === 'br') scaleChange = (deltaX + deltaY) / 200;
+      else if (resizeStart.corner === 'tl') scaleChange = -(deltaX + deltaY) / 200;
+      else if (resizeStart.corner === 'tr') scaleChange = (deltaX - deltaY) / 200;
+      else if (resizeStart.corner === 'bl') scaleChange = (-deltaX + deltaY) / 200;
       const newScale = Math.max(0.3, Math.min(3.0, resizeStart.scale + scaleChange));
       setImageScale(newScale);
     }
@@ -354,21 +352,17 @@ Provide only the rewritten headline, nothing else.`;
 
   const handleMouseUp = () => {
     const canvas = previewCanvasRef.current;
-    if (canvas) {
-      canvas.style.cursor = 'default';
-    }
+    if (canvas) canvas.style.cursor = 'default';
     setIsDragging(false);
     setIsResizing(false);
   };
 
-  // Add event listeners
   useEffect(() => {
     const canvas = previewCanvasRef.current;
     if (canvas) {
       canvas.addEventListener('mousedown', handleMouseDown);
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      
       return () => {
         canvas.removeEventListener('mousedown', handleMouseDown);
         document.removeEventListener('mousemove', handleMouseMove);
@@ -383,15 +377,16 @@ Provide only the rewritten headline, nothing else.`;
     const ctx = canvas.getContext("2d");
     canvas.width = 320;
     canvas.height = 400;
-
     const imageHeight = canvas.height * 0.6;
     const textHeight = canvas.height * 0.4;
-
     if (bgImage) {
       const img = new Image();
       img.onload = () => {
-        drawImageWithTransform(ctx, img, 0, 0, canvas.width, imageHeight, imagePosition.x, imagePosition.y, imageScale, imageDataRef);
-        drawTextSection(ctx, canvas.width, imageHeight, textHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, true, titleFontSize, metaFontSize, textAlignment, lineHeight);
+        drawImageWithTransform(ctx, img, 0, 0, canvas.width, imageHeight,
+          imagePosition.x, imagePosition.y, imageScale, imageDataRef);
+        drawTextSection(ctx, canvas.width, imageHeight, textHeight,
+          currentItem, editableTitle, cleanTitle, selectedLocation,
+          bgColor, textColor, shadow, true, titleFontSize, metaFontSize, textAlignment, lineHeight);
       };
       img.src = URL.createObjectURL(bgImage);
     } else {
@@ -400,21 +395,20 @@ Provide only the rewritten headline, nothing else.`;
       gradient.addColorStop(1, '#2a2a2a');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, imageHeight);
-      drawTextSection(ctx, canvas.width, imageHeight, textHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, true, titleFontSize, metaFontSize, textAlignment, lineHeight);
+      drawTextSection(ctx, canvas.width, imageHeight, textHeight,
+        currentItem, editableTitle, cleanTitle, selectedLocation,
+        bgColor, textColor, shadow, true, titleFontSize, metaFontSize, textAlignment, lineHeight);
     }
   };
 
-  // ✅ FIXED: Remove the * 3.375 multiplications
   const createNewsPost = () => {
     if (!currentItem) return;
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1350;
     const ctx = canvas.getContext("2d");
-
     const imageHeight = canvas.height * 0.6;
     const textSectionHeight = canvas.height * 0.4;
-
     if (bgImage) {
       const img = new Image();
       img.onload = () => {
@@ -424,23 +418,20 @@ Provide only the rewritten headline, nothing else.`;
           x: imagePosition.x * scaleX,
           y: imagePosition.y * scaleY
         };
-        
         const { drawWidth, drawHeight } = calculateImageDimensions(img, canvas.width, imageHeight, imageScale);
         const baseX = (canvas.width - drawWidth) / 2;
         const baseY = (imageHeight - drawHeight) / 2;
         const finalX = baseX + scaledPosition.x;
         const finalY = baseY + scaledPosition.y;
-
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, canvas.width, imageHeight);
         ctx.clip();
         ctx.drawImage(img, finalX, finalY, drawWidth, drawHeight);
         ctx.restore();
-        
-        // ✅ FIXED: Removed * 3.375 multiplications
-        drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, false, titleFontSize, metaFontSize, textAlignment, lineHeight);
-        
+        drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight,
+          currentItem, editableTitle, cleanTitle, selectedLocation,
+          bgColor, textColor, shadow, false, titleFontSize, metaFontSize, textAlignment, lineHeight);
         const link = document.createElement("a");
         link.download = "facebook_news_post.png";
         link.href = canvas.toDataURL();
@@ -454,10 +445,9 @@ Provide only the rewritten headline, nothing else.`;
       gradient.addColorStop(1, '#2a2a2a');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, imageHeight);
-      
-      // ✅ FIXED: Removed * 3.375 multiplications
-      drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, false, titleFontSize, metaFontSize, textAlignment, lineHeight);
-      
+      drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight,
+        currentItem, editableTitle, cleanTitle, selectedLocation,
+        bgColor, textColor, shadow, false, titleFontSize, metaFontSize, textAlignment, lineHeight);
       const link = document.createElement("a");
       link.download = "facebook_news_post.png";
       link.href = canvas.toDataURL();
@@ -466,19 +456,19 @@ Provide only the rewritten headline, nothing else.`;
     }
   };
 
-  const resetImageTransform = () => {
-    setImagePosition({ x: 0, y: 0 });
-    setImageScale(1.0);
-  };
+  const resetImageTransform = () => setImagePosition({ x: 0, y: 0 }) & setImageScale(1.0);
 
   useEffect(() => {
     if (show) drawPreview();
-  }, [bgColor, textColor, bgImage, shadow, show, imagePosition, imageScale, editableTitle, titleFontSize, metaFontSize, textAlignment, lineHeight]);
+  }, [
+    bgColor, textColor, bgImage, shadow, show, imagePosition, imageScale,
+    editableTitle, titleFontSize, metaFontSize, textAlignment, lineHeight
+  ]);
 
   if (!show) return null;
 
   return (
-    <div 
+    <div
       ref={modalRef}
       className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4"
       onDragEnter={handleDragEnter}
@@ -487,7 +477,6 @@ Provide only the rewritten headline, nothing else.`;
       onDrop={handleDrop}
     >
       <div className="bg-white rounded-lg w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col lg:flex-row">
-        
         {/* Drag & Drop Overlay */}
         {isDragOver && (
           <div className="absolute inset-0 bg-blue-500/20 border-4 border-dashed border-blue-500 rounded-lg z-10 flex items-center justify-center">
@@ -498,28 +487,22 @@ Provide only the rewritten headline, nothing else.`;
             </div>
           </div>
         )}
-
         {/* Paste Notification */}
         {pasteNotification && (
           <div className="absolute top-4 right-4 bg-white border rounded-lg p-3 shadow-lg z-20 animate-bounce">
             <p className="text-sm font-medium">{pasteNotification}</p>
           </div>
         )}
-        
         {/* Left Panel - Controls */}
         <div ref={dropZoneRef} className="w-full lg:w-1/2 p-6 overflow-y-auto lg:max-h-[95vh]">
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-[#551d54]">Create Facebook Portrait Post</h2>
-              <button 
-                className="lg:hidden px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm" 
-                onClick={onClose}
-              >
+              <button className="lg:hidden px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm" onClick={onClose}>
                 ✕ Close
               </button>
             </div>
             <p className="text-sm text-gray-600">Size: 1080x1350px (4:5 aspect ratio)</p>
-            
             {/* Quick Upload Tips */}
             <div className="p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2 mb-2">
@@ -532,7 +515,6 @@ Provide only the rewritten headline, nothing else.`;
                 <div>📁 <strong>File Upload:</strong> Use the file input below</div>
               </div>
             </div>
-            
             {/* Editable Title Section */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -552,7 +534,7 @@ Provide only the rewritten headline, nothing else.`;
                     {isGeneratingAI ? "Generating..." : "✨ AI Enhance"}
                   </button>
                   <button
-                    onClick={resetTitle}
+                    onClick={() => { setEditableTitle(cleanTitle(currentItem.title)); setAiError(""); setTimeout(() => { if (textareaRef.current) autoResizeTextarea(textareaRef.current); }, 0); }}
                     className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300 transition-colors"
                     title="Reset to original title"
                   >
@@ -560,7 +542,6 @@ Provide only the rewritten headline, nothing else.`;
                   </button>
                 </div>
               </div>
-              
               <textarea
                 ref={textareaRef}
                 value={editableTitle}
@@ -569,7 +550,6 @@ Provide only the rewritten headline, nothing else.`;
                 placeholder="Enter news title..."
                 style={{ minHeight: '60px' }}
               />
-              
               {aiError && (
                 <div className="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded border-l-4 border-orange-200">
                   <div className="flex items-center gap-1">
@@ -578,50 +558,108 @@ Provide only the rewritten headline, nothing else.`;
                   </div>
                 </div>
               )}
-              
               <div className="flex justify-between text-xs text-gray-500">
                 <span>Characters: {editableTitle.length}</span>
                 <span>Words: {editableTitle.split(' ').filter(w => w).length}</span>
               </div>
             </div>
-
+            {/* Facebook Description Generator Section */}
+            <div className="space-y-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={16} className="text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700">Facebook Post Description</span>
+                </div>
+                <button
+                  onClick={generateFacebookDescription}
+                  disabled={isGeneratingDescription || !editableTitle.trim()}
+                  className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded text-xs hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 flex items-center gap-1 transition-all duration-200"
+                  title="Generate Facebook post description with hashtags"
+                >
+                  {isGeneratingDescription ? (
+                    <RefreshCw size={12} className="animate-spin" />
+                  ) : (
+                    <Hash size={12} />
+                  )}
+                  {isGeneratingDescription ? "Generating..." : "🚀 Generate Description"}
+                </button>
+              </div>
+              {descriptionError && (
+                <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded border-l-4 border-red-200">
+                  <div className="flex items-center gap-1">
+                    <span>❌</span>
+                    <span>{descriptionError}</span>
+                  </div>
+                </div>
+              )}
+              {fbDescription && (
+                <div className="space-y-2">
+                  <div className="bg-white p-3 rounded border text-sm leading-relaxed max-h-32 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap font-sans">{fbDescription}</pre>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">
+                      Characters: {fbDescription.length} | Words: {fbDescription.split(' ').filter(w => w).length}
+                    </span>
+                    <button
+                      onClick={copyToClipboard}
+                      className={`px-3 py-1 rounded text-xs flex items-center gap-1 transition-all duration-200 ${
+                        isCopied ? 'bg-green-500 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'
+                      }`}
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check size={12} />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          Copy Description
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="text-xs text-blue-600">
+                <p>💡 <strong>Tip:</strong> Generate description after finalizing your title for best results</p>
+              </div>
+            </div>
             {/* Text Styling Controls */}
             <div className="space-y-3 p-3 bg-blue-50 rounded border">
               <div className="flex items-center gap-2">
                 <Type size={16} />
                 <span className="text-sm font-medium text-blue-700">Text Styling Controls</span>
               </div>
-              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-medium">Title Font Size: {titleFontSize}px</span>
-                  <input 
-                    type="range" 
-                    min="16" 
-                    max="40" 
+                  <input
+                    type="range"
+                    min="16"
+                    max="40"
                     step="2"
                     value={titleFontSize}
                     onChange={(e) => setTitleFontSize(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
                 </label>
-                
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-medium">Meta Font Size: {metaFontSize}px</span>
-                  <input 
-                    type="range" 
-                    min="10" 
-                    max="20" 
+                  <input
+                    type="range"
+                    min="10"
+                    max="20"
                     step="1"
                     value={metaFontSize}
                     onChange={(e) => setMetaFontSize(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
                 </label>
-                
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-medium">Text Alignment:</span>
-                  <select 
+                  <select
                     value={textAlignment}
                     onChange={(e) => setTextAlignment(e.target.value)}
                     className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -631,13 +669,12 @@ Provide only the rewritten headline, nothing else.`;
                     <option value="right">Right</option>
                   </select>
                 </label>
-                
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-medium">Line Height: {lineHeight}</span>
-                  <input 
-                    type="range" 
-                    min="1.0" 
-                    max="2.0" 
+                  <input
+                    type="range"
+                    min="1.0"
+                    max="2.0"
                     step="0.1"
                     value={lineHeight}
                     onChange={(e) => setLineHeight(parseFloat(e.target.value))}
@@ -646,37 +683,30 @@ Provide only the rewritten headline, nothing else.`;
                 </label>
               </div>
             </div>
-            
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">Background Color (Text Section):</span>
-              <input 
-                type="color" 
-                value={bgColor} 
-                onChange={(e) => setBgColor(e.target.value)} 
+              <input
+                type="color"
+                value={bgColor}
+                onChange={(e) => setBgColor(e.target.value)}
                 className="w-full h-10 border rounded cursor-pointer"
               />
             </label>
-            
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">Text Color:</span>
-              <input 
-                type="color" 
-                value={textColor} 
-                onChange={(e) => setTextColor(e.target.value)} 
+              <input
+                type="color"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
                 className="w-full h-10 border rounded cursor-pointer"
               />
             </label>
-            
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">Background Image (Top Section):</span>
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={(e) => {
-                  if (e.target.files[0]) {
-                    handleImageFile(e.target.files[0]);
-                  }
-                }} 
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => { if (e.target.files[0]) handleImageFile(e.target.files[0]); }}
                 className="border rounded p-2 text-sm file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
               />
               {bgImage && (
@@ -695,25 +725,22 @@ Provide only the rewritten headline, nothing else.`;
                 </div>
               )}
             </label>
-            
             <label className="flex items-center gap-2">
-              <input 
-                type="checkbox" 
-                checked={shadow} 
+              <input
+                type="checkbox"
+                checked={shadow}
                 onChange={() => setShadow(!shadow)}
                 className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
               />
               <span className="text-sm">Add Text Shadow</span>
             </label>
-
-            {/* Scale slider */}
             {bgImage && (
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-medium">Image Scale: {Math.round(imageScale * 100)}%</span>
-                <input 
-                  type="range" 
-                  min="0.3" 
-                  max="3.0" 
+                <input
+                  type="range"
+                  min="0.3"
+                  max="3.0"
                   step="0.1"
                   value={imageScale}
                   onChange={(e) => setImageScale(parseFloat(e.target.value))}
@@ -728,7 +755,6 @@ Provide only the rewritten headline, nothing else.`;
             )}
           </div>
         </div>
-
         {/* Right Panel - Preview */}
         <div className="w-full lg:w-1/2 p-6 bg-gray-50 flex flex-col">
           <div className="flex items-center justify-between mb-4">
@@ -736,17 +762,14 @@ Provide only the rewritten headline, nothing else.`;
               <span>📱 Preview:</span>
               {bgImage && <span className="text-xs font-normal text-gray-600">(Interactive Editor - Drag & Resize)</span>}
             </p>
-            <button 
-              className="hidden lg:block px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm" 
-              onClick={onClose}
-            >
+            <button className="hidden lg:block px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
+              onClick={onClose}>
               ✕ Close
             </button>
           </div>
-          
           <div className="flex-1 flex flex-col items-center justify-center">
-            <canvas 
-              ref={previewCanvasRef} 
+            <canvas
+              ref={previewCanvasRef}
               className="border w-full max-w-sm h-auto rounded cursor-default shadow-lg bg-white"
               style={{ maxHeight: '60vh' }}
             />
@@ -757,11 +780,10 @@ Provide only the rewritten headline, nothing else.`;
               </div>
             )}
           </div>
-
           {/* Action Buttons */}
           <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
-            <button 
-              className="px-4 py-2 bg-[#6B3F69] text-white rounded hover:bg-[#70446f] transition-colors font-medium flex items-center gap-2" 
+            <button
+              className="px-4 py-2 bg-[#6B3F69] text-white rounded hover:bg-[#70446f] transition-colors font-medium flex items-center gap-2"
               onClick={createNewsPost}
             >
               <Download size={16} />
