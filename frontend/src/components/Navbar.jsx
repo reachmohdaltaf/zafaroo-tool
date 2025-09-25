@@ -12,19 +12,26 @@ const Navbar = () => {
   };
 
   return (
-    <div className="bg-[#A376A2] px-2 flex justify-between items-center">
-      <h1 className="font-extrabold text-xl">Zafaroo Tool</h1>
-      <button
-        onClick={handleRefresh}
-        className="bg-transparent border-none cursor-pointer"
-        title="Refresh Page"
-      >
-        <RefreshCw
-          size={24}
-          className={spinning ? "animate-spin" : ""}
-        />
-      </button>
-    </div>
+    <nav className="bg-gradient-to-r from-black via-[#1a1a1a] to-red-900 text-white shadow-md">
+      <div className="max-w-6xl mx-auto flex justify-between items-center px-4 py-3">
+        {/* Logo / Title */}
+        <h1 className="font-extrabold text-2xl tracking-wide text-red-500">
+          Zafaroo Tool
+        </h1>
+
+        {/* Refresh Button */}
+        <button
+          onClick={handleRefresh}
+          className="bg-transparent border-none cursor-pointer hover:text-red-400 transition-colors"
+          title="Refresh Page"
+        >
+          <RefreshCw
+            size={26}
+            className={spinning ? "animate-spin" : ""}
+          />
+        </button>
+      </div>
+    </nav>
   );
 };
 
