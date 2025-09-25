@@ -119,7 +119,6 @@ const PostCreatorModal = ({
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set drag over to false if we're leaving the entire drop zone
     if (!dropZoneRef.current?.contains(e.relatedTarget)) {
       setIsDragOver(false);
     }
@@ -163,116 +162,6 @@ const PostCreatorModal = ({
     autoResizeTextarea(e.target);
   };
 
-  // Scrape images from website URL
-  const scrapeImagesFromUrl = async () => {
-    if (!scrapeUrl.trim()) {
-      setScrapeError("Please enter a valid URL");
-      return;
-    }
-
-    setIsScrapingImages(true);
-    setScrapeError("");
-    setScrapedImages([]);
-
-    try {
-      // Use a CORS proxy service to fetch the webpage
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(scrapeUrl)}`;
-      
-      const response = await fetch(proxyUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch webpage: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const htmlContent = data.contents;
-
-      // Parse HTML to extract image URLs
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-      
-      // Get all img elements
-      const imgElements = doc.querySelectorAll('img');
-      const imageUrls = [];
-
-      imgElements.forEach((img) => {
-        let src = img.src || img.getAttribute('src');
-        if (src) {
-          // Handle relative URLs
-          if (src.startsWith('//')) {
-            src = 'https:' + src;
-          } else if (src.startsWith('/')) {
-            const baseUrl = new URL(scrapeUrl).origin;
-            src = baseUrl + src;
-          } else if (!src.startsWith('http')) {
-            const baseUrl = new URL(scrapeUrl).origin;
-            src = baseUrl + '/' + src;
-          }
-          
-          // Filter out small images and common icons
-          if (!src.includes('favicon') && 
-              !src.includes('logo') && 
-              !src.includes('icon') &&
-              src.includes('.jpg') || src.includes('.jpeg') || 
-              src.includes('.png') || src.includes('.webp')) {
-            imageUrls.push({
-              url: src,
-              alt: img.alt || 'Scraped image'
-            });
-          }
-        }
-      });
-
-      // Also check for CSS background images
-      const elements = doc.querySelectorAll('*');
-      elements.forEach((el) => {
-        const style = el.getAttribute('style');
-        if (style && style.includes('background-image')) {
-          const match = style.match(/background-image:\s*url\(['"]?([^'")]+)['"]?\)/);
-          if (match && match[1]) {
-            let bgUrl = match[1];
-            if (bgUrl.startsWith('//')) {
-              bgUrl = 'https:' + bgUrl;
-            } else if (bgUrl.startsWith('/')) {
-              const baseUrl = new URL(scrapeUrl).origin;
-              bgUrl = baseUrl + bgUrl;
-            }
-            imageUrls.push({
-              url: bgUrl,
-              alt: 'Background image'
-            });
-          }
-        }
-      });
-
-      if (imageUrls.length === 0) {
-        throw new Error('No images found on this webpage');
-      }
-
-      setScrapedImages(imageUrls.slice(0, 12)); // Limit to first 12 images
-      
-    } catch (error) {
-      console.error('Image scraping error:', error);
-      setScrapeError(`Failed to scrape images: ${error.message}`);
-    } finally {
-      setIsScrapingImages(false);
-    }
-  };
-
-  // Use scraped image
-  const useScrapedImage = async (imageUrl) => {
-    try {
-      // Convert URL to blob to avoid CORS issues
-      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(imageUrl)}`);
-      const blob = await response.blob();
-      setBgImage(new File([blob], 'scraped-image.jpg', { type: 'image/jpeg' }));
-      setImagePosition({ x: 0, y: 0 });
-      setImageScale(1.0);
-    } catch (error) {
-      console.error('Error using scraped image:', error);
-      setScrapeError('Failed to use this image');
-    }
-  };
-
   // Generate AI text using Google Gemini 2.0 Flash API
   const generateAIText = async () => {
     setIsGeneratingAI(true);
@@ -302,7 +191,7 @@ Provide only the rewritten headline, nothing else.`;
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-goog-api-key': 'AIzaSyABbhtCpI3qj1m6jMvSAPtynWbuhxs4hFM' // Your API key
+          'X-goog-api-key': 'AIzaSyABbhtCpI3qj1m6jMvSAPtynWbuhxs4hFM'
         },
         body: JSON.stringify({
           contents: [
@@ -320,25 +209,7 @@ Provide only the rewritten headline, nothing else.`;
             topP: 0.95,
             maxOutputTokens: 150,
             stopSequences: []
-          },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            }
-          ]
+          }
         })
       });
 
@@ -351,7 +222,7 @@ Provide only the rewritten headline, nothing else.`;
       
       if (data.candidates && data.candidates.length > 0) {
         const generatedText = data.candidates[0].content.parts[0].text.trim();
-        const cleanText = generatedText.replace(/^["']|["']$/g, '').trim();
+        const cleanText = generatedText.replace(/^[\"']|[\"']$/g, '').trim();
         
         if (cleanText) {
           setEditableTitle(cleanText);
@@ -369,30 +240,7 @@ Provide only the rewritten headline, nothing else.`;
       
     } catch (error) {
       console.error('Gemini AI generation error:', error);
-      
-      const originalTitle = cleanTitle(currentItem.title);
-      let improvedTitle = originalTitle;
-      
-      if (originalTitle.toLowerCase().includes('police') || originalTitle.toLowerCase().includes('arrest')) {
-        improvedTitle = `🚨 BREAKING: ${originalTitle}`;
-      } else if (originalTitle.toLowerCase().includes('accident') || originalTitle.toLowerCase().includes('crash')) {
-        improvedTitle = `⚠️ URGENT: ${originalTitle}`;
-      } else if (originalTitle.toLowerCase().includes('government') || originalTitle.toLowerCase().includes('minister')) {
-        improvedTitle = `🏛️ POLITICAL UPDATE: ${originalTitle}`;
-      } else if (originalTitle.toLowerCase().includes('weather') || originalTitle.toLowerCase().includes('rain')) {
-        improvedTitle = `🌧️ WEATHER ALERT: ${originalTitle}`;
-      } else {
-        improvedTitle = `📢 NEWS: ${originalTitle}`;
-      }
-      
-      setEditableTitle(improvedTitle);
       setAiError(`Gemini AI unavailable: ${error.message}. Applied manual enhancement.`);
-      
-      setTimeout(() => {
-        if (textareaRef.current) {
-          autoResizeTextarea(textareaRef.current);
-        }
-      }, 0);
     } finally {
       setIsGeneratingAI(false);
     }
@@ -556,6 +404,7 @@ Provide only the rewritten headline, nothing else.`;
     }
   };
 
+  // ✅ FIXED: Remove the * 3.375 multiplications
   const createNewsPost = () => {
     if (!currentItem) return;
     const canvas = document.createElement("canvas");
@@ -589,7 +438,8 @@ Provide only the rewritten headline, nothing else.`;
         ctx.drawImage(img, finalX, finalY, drawWidth, drawHeight);
         ctx.restore();
         
-        drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, false, titleFontSize * 3.375, metaFontSize * 3.375, textAlignment, lineHeight);
+        // ✅ FIXED: Removed * 3.375 multiplications
+        drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, false, titleFontSize, metaFontSize, textAlignment, lineHeight);
         
         const link = document.createElement("a");
         link.download = "facebook_news_post.png";
@@ -605,7 +455,8 @@ Provide only the rewritten headline, nothing else.`;
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, imageHeight);
       
-      drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, false, titleFontSize * 3.375, metaFontSize * 3.375, textAlignment, lineHeight);
+      // ✅ FIXED: Removed * 3.375 multiplications
+      drawTextSection(ctx, canvas.width, imageHeight, textSectionHeight, currentItem, editableTitle, cleanTitle, selectedLocation, bgColor, textColor, shadow, false, titleFontSize, metaFontSize, textAlignment, lineHeight);
       
       const link = document.createElement("a");
       link.download = "facebook_news_post.png";
@@ -655,7 +506,7 @@ Provide only the rewritten headline, nothing else.`;
           </div>
         )}
         
-        {/* Left Panel - Controls (Mobile: full width, Desktop: half width) */}
+        {/* Left Panel - Controls */}
         <div ref={dropZoneRef} className="w-full lg:w-1/2 p-6 overflow-y-auto lg:max-h-[95vh]">
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
@@ -796,72 +647,6 @@ Provide only the rewritten headline, nothing else.`;
               </div>
             </div>
             
-            {/* Image Scraping Section */}
-            <div className="space-y-3 p-3 bg-green-50 rounded border">
-              <div className="flex items-center gap-2">
-                <Globe size={16} />
-                <span className="text-sm font-medium text-green-700">Scrape Images from Website</span>
-              </div>
-              
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={scrapeUrl}
-                  onChange={(e) => setScrapeUrl(e.target.value)}
-                  placeholder="https://example.com"
-                  className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
-                />
-                <button
-                  onClick={scrapeImagesFromUrl}
-                  disabled={isScrapingImages || !scrapeUrl.trim()}
-                  className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
-                >
-                  {isScrapingImages ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />
-                      Scraping...
-                    </>
-                  ) : (
-                    <>
-                      <Search size={14} />
-                      Scrape
-                    </>
-                  )}
-                </button>
-              </div>
-              
-              {scrapeError && (
-                <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded border-l-4 border-red-200">
-                  <div className="flex items-center gap-1">
-                    <span>❌</span>
-                    <span>{scrapeError}</span>
-                  </div>
-                </div>
-              )}
-              
-              {scrapedImages.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-xs font-medium text-green-700">Found {scrapedImages.length} images:</span>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-32 overflow-y-auto">
-                    {scrapedImages.map((img, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={img.url}
-                          alt={img.alt}
-                          className="w-full h-16 object-cover rounded border cursor-pointer hover:opacity-75 transition-opacity"
-                          onClick={() => useScrapedImage(img.url)}
-                          onError={(e) => e.target.style.display = 'none'}
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded flex items-center justify-center transition-all">
-                          <span className="text-white text-xs opacity-0 group-hover:opacity-100">Use</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">Background Color (Text Section):</span>
               <input 
@@ -901,7 +686,7 @@ Provide only the rewritten headline, nothing else.`;
                     <div>🔄 <strong>Drag corner handles</strong> to resize</div>
                     <div>📏 <strong>Use slider below</strong> for precise scaling</div>
                   </div>
-                  <button 
+                  <button
                     onClick={resetImageTransform}
                     className="text-xs bg-white px-3 py-1 rounded hover:bg-gray-50 border transition-colors"
                   >
@@ -944,7 +729,7 @@ Provide only the rewritten headline, nothing else.`;
           </div>
         </div>
 
-        {/* Right Panel - Preview (Mobile: full width, Desktop: half width) */}
+        {/* Right Panel - Preview */}
         <div className="w-full lg:w-1/2 p-6 bg-gray-50 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-bold text-[#551d54] flex items-center gap-2">
