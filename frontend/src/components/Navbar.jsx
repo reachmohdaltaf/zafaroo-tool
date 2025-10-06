@@ -16,7 +16,7 @@ const Navbar = () => {
       <div className="max-w-6xl mx-auto flex justify-between items-center px-4 py-3">
         {/* Logo / Title */}
         <h1 className="font-extrabold text-2xl tracking-wide text-red-500">
-          Zafaroo Tool
+          Scrapper Ai 2.0
         </h1>
 
         {/* Refresh Button */}
